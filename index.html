@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=750, user-scalable=no">
+  <title>AVL自平衡树</title>
+  <style>
+    * {padding: 0; margin: 0; font: inherit; color: inherit; box-sizing: border-box;}
+    html, body {height: 100%;}
+    #app {height: 100%;}
+    #app canvas {width: 100%; height: 100%; vertical-align: top;}
+  </style>
+</head>
+<body>
+  
+<div id="app">
+  <canvas id="c"></canvas>
+</div>
+
+<script>
+function rand(m, n) {
+  return Math.floor(Math.random() * (n - m + 1) + m)
+}
+
+Array.prototype.swap = function(a, b) {
+  const t = this[a]
+  this[a] = this[b]
+  this[b] = t
+}
+
+class BST {
+  constructor(arr) {
+    this.root = null
+    this.r = 20
+    this.size = 0
+    arr = arr.map((e, idx) => {
+      return {
+        e,
+        h: 1,
+        factor: 0,
+        x: 0,
+        y: 0,
+        tx: 0,
+        ty: 0,
+        l: null,
+        r: null,
+      }
+    })
+    this.arr = arr
+    this.updatePos()
+
+    /*arr.forEach((e) => {
+      this.add(e)
+    })*/
+    this.setPos()
+  }
+  add(e, cb) {
+    const me = this
+
+    function add(node) {
+      if (!node) {
+        return e
+      }
+
+      if (e.e < node.e) {
+        node.l = add(node.l)
+      } else if (e.e > node.e) {
+        node.r = add(node.r)
+      }
+
+      node.h = 1 + Math.max(me.getH(node.l), me.getH(node.r))
+      const factor = node.factor = me.getFactor(node)
+
+      // LL
+      if (factor > 1 && me.getFactor(node.l) >= 0) {
+        return me.rightRotate(node)
+      }
+
+      // LR
+      if (factor > 1 && me.getFactor(node.l) < 0) {
+        node.l = me.leftRotate(node.l)
+        return me.rightRotate(node)
+      }
+
+      // RR
+      if (factor < -1 && me.getFactor(node.r) <= 0) {
+        return me.leftRotate(node)
+      }
+
+      // RL
+      if (factor < -1 && me.getFactor(node.r) > 0) {
+        node.r = me.rightRotate(node.r)
+        return me.leftRotate(node)
+      }
+
+      return node
+    }
+
+    this.root = add(this.root)
+  }
+  rightRotate(y) {
+    const x = y.l
+    const T3 = x.r
+
+    x.r = y
+    y.l = T3
+
+    y.h = Math.max(this.getH(y.l), this.getH(y.r)) + 1
+    x.h = Math.max(this.getH(x.l), this.getH(x.r)) + 1
+
+    y.factor = this.getFactor(y)
+    x.factor = this.getFactor(x)
+
+    return x
+  }
+  leftRotate(y) {
+    const x = y.r
+    const T2 = x.l
+
+    x.l = y
+    y.r = T2
+
+    y.h = Math.max(this.getH(y.l), this.getH(y.r)) + 1
+    x.h = Math.max(this.getH(x.l), this.getH(x.r)) + 1
+
+    y.factor = this.getFactor(y)
+    x.factor = this.getFactor(x)
+
+    return x
+  }
+  getH(node) {
+    return node ? node.h : 0
+  }
+  getFactor(node) {
+    return node ? this.getH(node.l) - this.getH(node.r) : 0
+  }
+  updatePos() {
+    const me = this
+    const arr = me.arr
+    const lenH = Math.floor(window.innerWidth / 40) - 1
+
+    me.levelH = -1
+    arr.forEach((node, idx) => {
+      let _idx = idx %= lenH
+
+      _idx === 0 && me.levelH++
+      node.tx = _idx * 40 + 40
+      node.ty = me.levelH * 40 + 40
+    })
+  }
+  setPos() {
+    const me = this
+    let level = 0
+    let iLeft = 50
+
+    function setPos(node) {
+      if (!node) {
+        return
+      }
+
+      level++
+      setPos(node.l)
+      iLeft += me.r
+      node.tx = iLeft
+      node.ty = level * me.r * 2 * 1.8 + 180
+      setPos(node.r)
+
+      if (node.l && node.r) {
+        node.tx = (node.l.tx + node.r.tx) / 2
+      }
+
+      level--
+    }
+
+    setPos(this.root)
+  }
+  nextFrame() {
+    this.arr.forEach(setV)
+
+    function loop(node) {
+      if (!node) {
+        return
+      }
+
+      setV(node)
+      loop(node.l)
+      loop(node.r)
+    }
+
+    function setV(node) {
+      let vx = (node.tx - node.x) / 8
+      let vy = (node.ty - node.y) / 8
+
+      vx = vx > 0 ? Math.ceil(vx) : Math.floor(vx)
+      vy = vy > 0 ? Math.ceil(vy) : Math.floor(vy)
+
+      node.x += vx
+      node.y += vy
+    }
+
+    loop(this.root)
+    this.render()
+  }
+  render() {
+    const me = this
+
+    gd.clearRect(0, 0, window.innerWidth, window.innerHeight)
+
+    me.arr.forEach((node) => {
+      gd.beginPath()
+      gd.arc(node.x, node.y, 20, 0, 2 * Math.PI)
+      gd.fillStyle = 'rgba(255,0,0,.5)'
+      gd.fill()
+
+      gd.beginPath()
+      gd.font = '14px Arial'
+      gd.textAlign = 'center'
+      gd.textBaseline = 'middle'
+      gd.fillStyle = '#fff'
+      gd.fillText(node.e, node.x, node.y)
+    })
+
+    function drawLine(node) {
+      if (!node) {
+        return
+      }
+
+      gd.beginPath()
+      node.l && gd.lineTo(node.l.x, node.l.y)
+      gd.lineTo(node.x, node.y)
+      node.r && gd.lineTo(node.r.x, node.r.y)
+      gd.strokeStyle = '#aa0'
+      gd.stroke()
+
+      drawLine(node.l)
+      drawLine(node.r)
+    }
+
+    function drawCircle(node) {
+      if (!node) {
+        return
+      }
+
+      gd.beginPath()
+      gd.arc(node.x, node.y, me.r, 0, 2 * Math.PI)
+      gd.fillStyle = 'rgba(255,0,0,.5)'
+      gd.fill()
+
+      gd.beginPath()
+      gd.textAlign = 'center'
+      gd.textBaseline = 'middle'
+      gd.font = '14px Arial'
+      gd.fillStyle = '#fff'
+      gd.fillText(node.e, node.x, node.y)
+
+      gd.beginPath()
+      gd.textAlign = 'center'
+      gd.textBaseline = 'middle'
+      gd.font = '12px Arial'
+      gd.fillStyle = '#09f'
+      gd.fillText('高度:' + node.h, node.x, node.y - 26)
+
+      gd.beginPath()
+      gd.textAlign = 'center'
+      gd.textBaseline = 'middle'
+      gd.font = '12px Arial'
+      gd.fillStyle = '#0a0'
+      gd.fillText('平衡:' + node.factor, node.x, node.y - 40)
+
+      drawCircle(node.l)
+      drawCircle(node.r)
+    }
+
+    drawLine(this.root)
+    drawCircle(this.root)
+  }
+}
+
+const len = Math.pow(2, 5) - 1
+let arr = new Array(len).fill().map((_, idx) => {
+  return idx
+})
+
+const c = document.getElementById('c')
+const gd = c.getContext('2d')
+const bst = new BST(arr)
+
+window.onresize = () => {
+  c.width = window.innerWidth
+  c.height = window.innerHeight
+
+  bst.render()
+}
+
+window.onresize()
+
+let isOver = false
+let isEnding = false
+function loopSet() {
+  setTimeout(function() {
+    if (bst.arr.length === 0) {
+      isOver = true
+      console.log('结束')
+      return
+    }
+    const node = bst.arr.pop()
+    bst.updatePos()
+    bst.add(node)
+    bst.setPos()
+
+    loopSet()
+  }, 700)
+}
+loopSet()
+
+
+function loopRender() {
+  if (isEnding) {
+    console.log('ending...')
+    return
+  }
+  if (isOver) {
+    setTimeout(() => {
+      isEnding = true
+    }, 1000)
+  }
+  requestAnimationFrame(() => {
+    bst.nextFrame()
+    loopRender()
+  })
+}
+loopRender()
+</script>
+
+</body>
+</html>
